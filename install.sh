@@ -26,8 +26,6 @@ pause() {
 # 说明
 echo
 echo -e "$yellow此脚本仅兼容于Debian 10+系统. 如果你的系统不符合,请Ctrl+C退出脚本$none"
-echo -e "可以去 ${cyan}https://github.com/crazypeace/xray-vless-reality${none} 查看脚本整体思路和关键命令, 以便针对你自己的系统做出调整."
-echo -e "有问题加群 ${cyan}https://t.me/+ISuvkzFGZPBhMzE1${none}"
 echo "----------------------------------------------------------------"
 
 uuidSeed=$(curl -sL https://www.cloudflare.com/cdn-cgi/trace | grep -oP 'ip=\K.*$')$(cat /proc/sys/kernel/hostname)$(cat /etc/timezone)
@@ -64,7 +62,7 @@ if [ $# -ge 1 ]; then
     # 第3个参数是域名
     domain=${3}
     if [[ -z $domain ]]; then
-      domain="learn.microsoft.com"
+      domain="itunes.apple.com"
     fi
 
     # 第4个参数是UUID
@@ -84,7 +82,7 @@ pause
 
 # 准备工作
 apt update
-apt install -y curl sudo jq qrencode
+apt install -y curl sudo jq cron
 
 # Xray官方脚本 安装 Xray v1.8.3 版本
 echo
@@ -123,6 +121,14 @@ echo "net.ipv4.tcp_congestion_control = bbr" >>/etc/sysctl.conf
 echo "net.core.default_qdisc = fq" >>/etc/sysctl.conf
 sysctl -p >/dev/null 2>&1
 
+#设置定时重启
+echo
+echo -e "$yellow设置定时重启$none"
+crontab -l 2>/dev/null|sed '/acme.sh/d'|sed '/reboot/d'> crontab.txt
+echo "30 16 * * * /sbin/reboot" >> crontab.txt
+crontab crontab.txt
+rm -f crontab.txt
+
 # 配置 VLESS_Reality 模式, 需要:端口, UUID, x25519公私钥, 目标网站
 echo
 echo -e "$yellow配置 VLESS_Reality 模式$none"
@@ -130,9 +136,9 @@ echo "----------------------------------------------------------------"
 
 # 网络栈
 if [[ -z $netstack ]]; then
-  echo
-  echo -e "如果你的小鸡是${magenta}双栈(同时有IPv4和IPv6的IP)${none}，请选择你把v2ray搭在哪个'网口'上"
-  echo "如果你不懂这段话是什么意思, 请直接回车"
+#  echo
+#  echo -e "如果你的小鸡是${magenta}双栈(同时有IPv4和IPv6的IP)${none}，请选择你把v2ray搭在哪个'网口'上"
+#  echo "如果你不懂这段话是什么意思, 请直接回车"
   read -p "$(echo -e "Input ${cyan}4${none} for IPv4, ${cyan}6${none} for IPv6:") " netstack
 
   # 本机IP
@@ -252,7 +258,7 @@ fi
 if [[ -z $domain ]]; then
   echo -e "请输入一个 ${magenta}合适的域名${none} Input the domain"
   read -p "(例如: learn.microsoft.com): " domain
-  [ -z "$domain" ] && domain="learn.microsoft.com"
+  [ -z "$domain" ] && domain="itunes.apple.com"
 
   echo
   echo
@@ -412,58 +418,8 @@ if [[ $netstack == "6" ]]; then
 fi
 vless_reality_url="vless://${uuid}@${ip}:${port}?flow=xtls-rprx-vision&encryption=none&type=tcp&security=reality&sni=${domain}&fp=${fingerprint}&pbk=${public_key}&sid=${shortid}&spx=${spiderx}&#VLESS_R_${ip}"
 echo -e "${cyan}${vless_reality_url}${none}"
-echo
-sleep 3
-echo "以下两个二维码完全一样的内容"
-qrencode -t UTF8 $vless_reality_url
-qrencode -t ANSI $vless_reality_url
-echo
 echo "---------- END -------------"
+echo $vless_reality_url > ~/_vless_reality_url_
 echo "以上节点信息保存在 ~/_vless_reality_url_ 中"
 
-# 节点信息保存到文件中
-echo $vless_reality_url > ~/_vless_reality_url_
-echo "以下两个二维码完全一样的内容" >> ~/_vless_reality_url_
-qrencode -t UTF8 $vless_reality_url >> ~/_vless_reality_url_
-qrencode -t ANSI $vless_reality_url >> ~/_vless_reality_url_
 
-# 如果是 IPv6 小鸡，用 WARP 创建 IPv4 出站
-if [[ $netstack == "6" ]]; then
-    echo
-    echo -e "$yellow这是一个 IPv6 小鸡，用 WARP 创建 IPv4 出站$none"
-    echo "Telegram电报是直接访问IPv4地址的, 需要IPv4出站的能力"
-    echo -e "如果WARP安装不顺利, 请在命令行执行${cyan} bash <(curl -L https://ghproxy.crazypeace.workers.dev/https://github.com/crazypeace/warp.sh/raw/main/warp.sh) 4 ${none}"
-    echo "----------------------------------------------------------------"
-    pause
-
-    # 安装 WARP IPv4
-    bash <(curl -L git.io/warp.sh) 4
-
-    # 重启 Xray
-    echo
-    echo -e "$yellow重启 Xray$none"
-    echo "----------------------------------------------------------------"
-    service xray restart
-
-# 如果是 IPv4 小鸡，用 WARP 创建 IPv6 出站
-elif  [[ $netstack == "4" ]]; then
-    echo
-    echo -e "$yellow这是一个 IPv4 小鸡，用 WARP 创建 IPv6 出站$none"
-    echo -e "有些热门小鸡用原生的IPv4出站访问Google需要通过人机验证, 可以通过修改config.json指定google流量走WARP的IPv6出站解决"
-    echo -e "群组: ${cyan} https://t.me/+ISuvkzFGZPBhMzE1 ${none}"
-    echo -e "教程: ${cyan} https://zelikk.blogspot.com/2022/03/racknerd-v2ray-cloudflare-warp--ipv6-google-domainstrategy-outboundtag-routing.html ${none}"
-    echo -e "视频: ${cyan} https://youtu.be/Yvvm4IlouEk ${none}"
-    echo -e "如果WARP安装不顺利, 请在命令行执行${cyan} bash <(curl -L https://ghproxy.crazypeace.workers.dev/https://github.com/crazypeace/warp.sh/raw/main/warp.sh) 6 ${none}"
-    echo "----------------------------------------------------------------"
-    pause
-
-    # 安装 WARP IPv6
-    bash <(curl -L git.io/warp.sh) 6
-
-    # 重启 Xray
-    echo
-    echo -e "$yellow重启 Xray$none"
-    echo "----------------------------------------------------------------"
-    service xray restart
-
-fi
